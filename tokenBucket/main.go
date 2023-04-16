@@ -26,25 +26,28 @@ func (tb *TokenBucket) removeToken() bool {
 
 	defer tb.lock.Unlock()
 
-	elapsedTime := time.Now().Sub(tb.lastUpdated)
-
-	refillTokens := (int(elapsedTime.Seconds()) * tb.rate)
-
-	if refillTokens > 0 {
-		tb.lastUpdated = time.Now()
-	}
-
-	if tb.tokens+refillTokens >= tb.capacity {
-		tb.tokens = tb.capacity
-	} else {
-		tb.tokens += refillTokens
-	}
+	tb.refill()
 
 	if tb.tokens > 0 {
 		tb.tokens--
 		return true
 	} else {
 		return false
+	}
+}
+
+func (tb *TokenBucket) refill() {
+	elapsedTime := time.Now().Sub(tb.lastUpdated)
+
+	refillTokens := (int(elapsedTime.Seconds()) * tb.rate)
+
+	if refillTokens > 0 {
+		tb.lastUpdated = time.Now()
+		tb.tokens += refillTokens
+	}
+
+	if tb.tokens+refillTokens > tb.capacity {
+		tb.tokens = tb.capacity
 	}
 }
 
