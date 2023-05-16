@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -46,7 +49,7 @@ func (tb *TokenBucket) refill() {
 		tb.tokens += refillTokens
 	}
 
-	if tb.tokens+refillTokens > tb.capacity {
+	if tb.tokens > tb.capacity {
 		tb.tokens = tb.capacity
 	}
 }
@@ -55,7 +58,11 @@ func main() {
 
 	TBucket := TokenBucket{}
 
-	TBucket.New(5, 5)
+	TBucket.New(5, 2)
+
+	done := make(chan bool)
+
+	go handleShutdowns(done)
 
 	for i := 1; i <= 20; i++ {
 		if TBucket.removeToken() {
@@ -65,4 +72,27 @@ func main() {
 		}
 		time.Sleep(time.Duration((100 + 100*int((i/11)))) * time.Millisecond)
 	}
+
+	fmt.Println("Wating for shutdowns....")
+
+	<-done
+
+	fmt.Println("Shutting down")
+}
+
+func handleShutdowns(done chan<- bool) {
+	signalChannel := make(chan os.Signal, 2)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGSEGV)
+
+	go func() {
+		sig := <-signalChannel
+		switch sig {
+		case os.Interrupt:
+			fmt.Println("Encountered os interrupt")
+			done <- true
+		case syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGSEGV:
+			fmt.Println("Received linux signel")
+			done <- true
+		}
+	}()
 }
